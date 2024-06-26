@@ -14,7 +14,7 @@ Sealed invokes a process where media can be measured, cropped, shared, much like
 5. When both parties have entered the virtual room, call comenses with the ability to toggle use of both Microphone (Mute) or Camera (Mute).
 6. If either party terminates the call (Exit) the call terminates for both parties and memory is flushed with the site reloaded for the next call.
 
-![sealed-process](https://github.com/ibinary/mumbai/project-mumbai-2.jpg)
+![project-mumbai-2](https://github.com/ibinary/mumbai/assets/86942/c917374c-65c2-4911-a675-060e05043259)
 
 # Post Process:
 1. At the end of the call, click-or-press "Exit" and the call will be terminated for both parties.
