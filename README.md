@@ -7,9 +7,12 @@ Mumbai's code contains a hard-code lock to only two participants per call, with 
 # Process:
 Sealed invokes a process where media can be measured, cropped, shared, much like "edges" on paintings used for anti-forgery and insurance process. Standard hash-codes are generated to text and .json files to be secured personally, or on a service like IPFS or blockchain or redis or any preferred secured store.
 
-1. Copyright IMAGE(S), VIDEO(S) or TEXT(S) are uploaded to Sealed.ch OR local terminal application OR self-directed use of the open-source code - https://github.com/ibinary/sealed integrated for custom solutions. AUDIO(S) will be part of Sealed 3.x.
-2. IMAGE(S) is HASHED to document or fingerprint the original.
-3. IMAGE(S) is randomly cropped from 3 to 11 pixels depending on IMAGE(S) size, producing a separate file of frames or "edges."
+1. Using any modern browser (Chrome, Edge, Safari, Firefox (WebRTC Supported)) navigate to a Mumbai site or use via Sealed at - https://mumbai.sealed.ch.
+2. Create a room with a name of your choice.
+3. Enter your name for the call.
+4. Share the URL via any medium to the second party or press "Share" for a QR Code.
+5. When both parties have entered the virtual room, call comenses with the ability to toggle use of both Microphone (Mute) or Camera (Mute).
+6. If either party terminates the call (Exit) the call terminates for both parties and memory is flushed with the site reloaded for the next call.
 
 ![sealed-process](https://github.com/ibinary/mumbai/assets/)
 
