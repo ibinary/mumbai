@@ -1,4 +1,4 @@
-# mumbai
+# Mumbai
 Mumbai is a simple, open-source, no-log, no-registration, one-to-one video conferencing system. You can download the source code for Mumbai and load it on your own server, run locally or experiment at the public use share on Sealed - https://mumbai.sealed.ch. The goal of Mumbai is for anyone who currently uses other web video-conferencing tools to self-host (your URL) to have full control of your risk profile and abstraction from other free or fee services who are known to use transcripts of calls for other purposes.
 
 Mumbai employs the use of WebRTC and hard-coded limit to two (one-to-one) participant calling on demand to any device that supports current HTML standards (which include WebRTC). Mumbai is open-source and offers no accountability or liability for your use of this code or service. Mumbai was designed, funded and shared as open-source for legal use only.
