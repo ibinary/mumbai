@@ -1,13 +1,13 @@
 # Mumbai
 Mumbai is a simple, open-source, no-log, no-registration, one-to-one video conferencing system. You can download the source code for Mumbai and load it on your own server, run locally or experiment at the public use share on Sealed - https://mumbai.sealed.ch. The goal of Mumbai is for anyone who currently uses other web video-conferencing tools to self-host (your URL) to have full control of your risk profile and abstraction from other free or fee services who are known to use transcripts of calls for other purposes.
 
-Mumbai employs the use of WebRTC and hard-coded limit to two (one-to-one) participant calling on demand to any device that supports current HTML standards (which include WebRTC). Mumbai is open-source and offers no accountability or liability for your use of this code or service. Mumbai was designed, funded and shared as open-source for legal use only.
+Mumbai employs the use of WebRTC and hard-coded limit to two (one-to-one) participant calling on demand to any device that supports current HTML standards (WebRTC). Mumbai is open-source and offers no accountability or liability for your use of this code or service. Mumbai was designed, funded and shared as open-source for legal use only. Mumbai is one-to-one, peer-to-peer and can opperate on VPNs, Tor or i2P
 
 Mumbai's code contains a hard-code lock to only two participants per call, with no "extras", plug-ins, data capture, log files or user identification. It was designed for one-on-one voice/video conversations without concern of silent third parties evesdropping or capturing the content for these conversations. Either party may initiate, invite, and terminate the calls for all parties on demand without constraint to tracking.
 # Process:
 Sealed invokes a process where media can be measured, cropped, shared, much like "edges" on paintings used for anti-forgery and insurance process. Standard hash-codes are generated to text and .json files to be secured personally, or on a service like IPFS or blockchain or redis or any preferred secured store.
 
-1. Using any modern browser (Chrome, Edge, Safari, Firefox (WebRTC Supported)) navigate to a Mumbai site or use via Sealed at - https://mumbai.sealed.ch.
+1. Using any modern browser (Chrome, Edge, Safari, Firefox...) with WebRTC support, navigate to a Mumbai site or use via Sealed at - https://mumbai.sealed.ch.
 2. Create a room with a name of your choice.
 3. Enter your name for the call.
 4. Share the URL via any medium to the second party or press "Share" for a QR Code.
