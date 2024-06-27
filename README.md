@@ -1,5 +1,5 @@
 # Mumbai
-Mumbai is a simple, open-source, no-log, no-registration, one-to-one video conferencing system for two people to communicate in private. You can download the source code for Mumbai and load it on your own server, run locally or experiment with the public use share via Sealed - https://mumbai.sealed.ch. The goal of Mumbai is for anyone who currently uses video-conferencing tools to self-host (your URL) for full control of your risk profile and abstraction from other free or fee services who are known to use transcripts, identification, logs and other captured data from your calls for other purposes.
+Mumbai is a simple, open-source, zero-footprint, no-log, no-registration, no client downloads, one-to-one video conferencing system for two people to communicate in private. You can download the source code for Mumbai and load it on your own server, run locally or experiment with the public use share via Sealed - https://mumbai.sealed.ch. The goal of Mumbai is for anyone who currently uses video-conferencing tools to self-host (your URL) for full control of your risk profile and abstraction from other free or fee services who are known to use transcripts, identification, logs and other captured data from your calls for other purposes.
 
 Mumbai employs the use of WebRTC for video conferencing on demand to any device that supports current HTML standards. Mumbai's code contains a hard-coded lock to only two participants per call, with no "extras", plug-ins, data capture, log files or user identification. It was designed for simplified, personal conversations without concern of third parties evesdropping or capturing the content. Either party may initiate, invite, and terminate the calls for all parties on demand without constraint.
 
@@ -19,7 +19,7 @@ Mumbai invokes a WebRTC based initial process to connect two participants to a s
 # Post Process:
 1. At the end of the call, click-or-press "Exit" and the call will be terminated for both parties.
 2. As part of the call termination, memory is wiped and Mumbai returns to the initial landing page.
-# Post Release 3.x:
+# Post Release 2.x:
 1. Added support for FIDO2 initiated calls.
 2. Added support for low-cost, dedicated, hardend platform (hardware) to abstract from personal devices.
 # Dependencies:
@@ -27,7 +27,7 @@ Linux: Install the code on your web server.
 Windows: Install the code on your web server.
 macOS: Install the code on your web server.
 # History:
-The idea for Mumbai was the secondary effect of work on it's elder Bombay, whose design was prompted by the reduction of privacy and growing use of transcript (AI) scraping by most conferencing tools. A chance conversation with my friends Lucian and Jake led directly to the funding and sharing of these respective tools. I am concerned about the reduction of trust with digital tools, and the generic lack of commitment to open-source for verification. As AI use in all things digital, especially social media and WebRTC like conferencing systems, a need has grown to have a simple, secure, open-source method to protect individuals and the institutions they work with to confirm the comitment to privacy and not be used as a feed to their AI corpus. 
+The idea for Mumbai was the secondary effect of work on it's elder full-feature "Bombay", whose design was prompted by the reduction of privacy and growing use of transcript (AI) scraping, user and technical identification by most commercial conferencing tools. A chance conversation with my friends Lucian and Jake led directly to the funding and sharing of these two respective tools. I am concerned about the reduction of trust with digital tools, and the generic lack of commitment to open-source for verification. As AI use in all things digital, especially social media and WebRTC like conferencing systems, a need has grown to have a simple, secure, open-source, clientless method to protect individuals and the institutions to confirm a comitment to privacy. 
 # Contact:
 We hope others can leverage Mumbai for their own, personal or institutional needs. If you have any suggestions, enhancements, updates, forks, all are warmly welcomed at sealed-ch@pm.me
 #
