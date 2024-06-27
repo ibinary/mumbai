@@ -5,7 +5,7 @@ Mumbai employs the use of WebRTC for video conferencing on demand to any device 
 
 Mumbai is one-to-one, peer-to-peer and can opperate on VPNs, Tor or i2P. Mumbai is open-source and offers no accountability or liability for your use of this code or service. Mumbai was designed, funded and shared as open-source for legal use only.
 # Process:
-Mumbai invokes a WebRTC based initial process to connect two participants to a shared virtual room for video conferencing. Mumbai is hard-coded to limit these rooms to only two participants, each with anonymous control to create, share, participate and terminate meetings.
+Mumbai invokes a WebRTC based initial process to connect two participants to a shared virtual room for video conferencing. Mumbai is hard-coded to limit these rooms to only two participants, each with anonymous control to create, share, participate and terminate calls.
 
 1. Using any modern browser (Chrome, Edge, Safari, Firefox...) with WebRTC support, navigate to a Mumbai site or use via Sealed at - https://mumbai.sealed.ch.
 2. Create a room with a name of your choice.
