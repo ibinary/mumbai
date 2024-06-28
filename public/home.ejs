@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <%- include('./header.ejs') %>
+	<link rel="stylesheet" href="/assets/css/all.min.css" />
+    </head>
+    <body>
+        <div class="home">
+            <h2>
+                <img src="/assets/favicon.png" />
+               Project Mumbai
+            </h2>
+            <form>
+                <input id="room-id" type="text" placeholder="Enter Room Name" required />
+                <button id="create-room" class="button-38" type="submit">
+                    <i class="fa-solid fa-circle-plus"></i>
+                    Create Room
+                </button>
+            </form>
+        </div>
+    </body>
+    <script>
+        document.querySelector('#create-room').onclick = async (e) => {
+            const roomID = document.querySelector('#room-id').value;
+            if (!roomID) return;
+            e.preventDefault();
+            const response = await fetch(`/room/${roomID}`, { method: 'POST' });
+            const responseJSON = await response.json();
+            if (response.ok) {
+                window.location.href = `/room/${roomID}?k=${responseJSON.secretKey}`;
+            } else {
+                alert(responseJSON.message);
+            }
+        };
+    </script>
+</html>

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <%- include('./header.ejs') %>
+        <link rel="stylesheet" href="/assets/css/video-grid.css" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    </head>
+    <body>
+        <div class="join">
+            <form>
+                <input id="name" type="text" placeholder="Enter Your Name" required />
+                <button id="create-room" class="button-38" type="submit">
+                    <i class="fa-solid fa-circle-plus"></i>
+                    Submit
+                </button>
+            </form>
+        </div>
+        <div class="call" style="display: none">
+            <div class="Scenary"></div>
+<div class="control">
+                <button class="enable-audio toggle-audio button-38" style="display: none">
+                    <i class="fa-solid fa-microphone-slash"></i>
+                </button>
+                <button class="disable-audio toggle-audio button-38">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                <button class="leave-room button-38">
+                    Exit
+                </button>
+                <button id="share-room" class="share-room button-38" style="display: flex;">
+                Share
+                </button>
+
+                <button class="toggle-video disable-video button-38" style="display: flex;">
+                   <i class="fa-solid fa-video-camera"></i>
+                </button>
+                <button class="toggle-video enable-video button-38" style="display: none;">
+		   <i class="fas fa-video-slash"></i>
+                </button>
+		</div>           
+	     </div>
+        </div>
+    </body> 
+    <script src="/assets/js/video-grid.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+    <script src="/assets/js/js.cookie.min.js"></script>
+    <script>
+        const roomId = '<%=roomId %>';
+    </script>
+    <script src="/assets/js/media.js"></script>
+    <script src="/assets/js/call.js"></script>
+</html>

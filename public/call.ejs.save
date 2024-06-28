@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <%- include('./header.ejs') %>
+        <link rel="stylesheet" href="/assets/css/video-grid.css" />
+    </head>
+    <body>
+        <div class="join">
+            <form>
+                <input id="name" type="text" placeholder="Enter Your Name" required />
+                <button id="create-room" class="button-38" type="submit">
+                    <i class="fa-solid fa-circle-plus"></i>
+                    Submit
+                </button>
+            </form>
+        </div>
+        <div class="call" style="display: none">
+            <div class="Scenary"></div>
+            <div class="control">
+                <button class="enable-audio toggle-audio button-38" style="display: none">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+                <button class="disable-audio toggle-audio button-38">
+                    <i class="fa-solid fa-microphone-slash"></i>
+                </button>
+                <button class="leave-room button-38">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    Leave
+                </button>
+                <button class="toggle-video enable-video button-38" style="display: none">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+                <button class="toggle-video disable-video button-38">
+                    <img src = "/assets/svgs/camera-slash.svg" alt="camera-off"/>
+                </button>
+                <button class="toggle-chat button-38">
+                    <span style="display: none">⚫</span>
+                    <i class="fa-solid fa-message"></i>
+                </button>
+            </div>
+            <div class="chat" style="display: none">
+                <div class="chat-heading">
+                     <h4><center>Call Messages</center></h4>
+                    <i class="fa-solid fa-xmark chat-heading-close"></i>
+                </div>
+                <div class="chat-content"></div>
+                <form>
+                    <input type="text" placeholder="Send Message" class="chat-form-input" name="message">
+                    <button type="submit">
+                        <i class="fa-solid fa-paper-plane-top"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </body> 
+    <script src="/assets/js/video-grid.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="/assets/js/js.cookie.min.js"></script>
+    <script>
+        const roomId = '<%=roomId %>';
+    </script>
+    <script src="/assets/js/media.js"></script>
+    <script src="/assets/js/call.js"></script>
+</html>

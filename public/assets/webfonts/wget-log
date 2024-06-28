@@ -1,0 +1,6 @@
+--2024-02-20 07:42:42--  https://cdn.discordapp.com/attachments/1198726648569278577/1209404718099464192/fa-solid-900.woff2?ex=65e6ccea
+Resolving cdn.discordapp.com (cdn.discordapp.com)... 162.159.133.233, 162.159.129.233, 162.159.134.233, ...
+Connecting to cdn.discordapp.com (cdn.discordapp.com)|162.159.133.233|:443... connected.
+HTTP request sent, awaiting response... 403 Forbidden
+2024-02-20 07:42:42 ERROR 403: Forbidden.
+
