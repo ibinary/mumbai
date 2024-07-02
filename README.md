@@ -12,7 +12,8 @@ Mumbai invokes a WebRTC based initial process to connect two participants to a s
 3. Enter your name for the call.
 4. Share the URL via any medium to the second party or press "Share" for a QR Code.
 5. When both parties have entered the virtual room, call comenses with the ability to toggle use of both Microphone (Mute) or Camera (Mute).
-6. If either party terminates the call (Exit) the call terminates for both parties and memory is flushed with the site reloaded for the next call.
+6. On most browsers and OS, press F11 for full screen and you can then focus on your meeting.
+7. If either party terminates the call (Exit) the call terminates for both parties and memory is flushed with the site reloaded for the next call.
 
 ![project-mumbai-2](https://github.com/ibinary/mumbai/assets/86942/c917374c-65c2-4911-a675-060e05043259)
 
