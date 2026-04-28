@@ -1,5 +1,5 @@
-import { SocketStream } from '@fastify/websocket';
 import { FastifyBaseLogger, FastifyRequest } from 'fastify';
+import { RawData, WebSocket } from 'ws';
 import WSMessage from './wsMessage';
 import Rooms from './rooms';
 import { User } from './user';
@@ -20,11 +20,11 @@ const NAME_MAX = 40;
 //   4403 = room full
 //   4404 = room not found
 export default function handleWS(log: FastifyBaseLogger) {
-    return function (connection: SocketStream, request: MyRequest) {
+    return function (socket: WebSocket, request: MyRequest) {
         const { peerId = '', roomId = '' } = request.query;
 
         if (!ROOM_ID_RE.test(roomId) || !PEER_ID_RE.test(peerId)) {
-            connection.socket.close(4400);
+            socket.close(4400);
             return;
         }
         let safeName = 'Guest';
@@ -32,18 +32,18 @@ export default function handleWS(log: FastifyBaseLogger) {
 
         const room = Rooms.getInstance().get(roomId);
         if (!room) {
-            connection.socket.close(4404);
+            socket.close(4404);
             return;
         }
 
         const cookieSecret = (request as FastifyRequest).cookies?.[roomCookieName(roomId)];
         if (!cookieSecret || !verifyRoomCookie(cookieSecret, room.getSecretKey())) {
-            connection.socket.close(4401);
+            socket.close(4401);
             return;
         }
 
         const joinTimeout = setTimeout(() => {
-            if (!joined) connection.socket.close(4400);
+            if (!joined) socket.close(4400);
         }, 10_000);
         joinTimeout.unref();
 
@@ -54,16 +54,16 @@ export default function handleWS(log: FastifyBaseLogger) {
 
             const currentRoom = Rooms.getInstance().get(roomId);
             if (!currentRoom) {
-                connection.socket.close(4404);
+                socket.close(4404);
                 return;
             }
             if (currentRoom.isFull()) {
                 try {
-                    connection.socket.send(JSON.stringify(new WSMessage('room_full', {})));
+                    socket.send(JSON.stringify(new WSMessage('room_full', {})));
                 } catch {
                     /* ignore */
                 }
-                connection.socket.close(4403);
+                socket.close(4403);
                 return;
             }
 
@@ -71,7 +71,7 @@ export default function handleWS(log: FastifyBaseLogger) {
                 typeof displayName === 'string' && displayName.trim()
                     ? displayName.trim().slice(0, NAME_MAX)
                     : 'Guest';
-            const newUser = new User(peerId, safeName, connection.socket);
+            const newUser = new User(peerId, safeName, socket);
             WsClients.getInstance().add(peerId, newUser);
             const beforeUpdateRoomData = [...(currentRoom.getMemberWithoutSocket() || [])];
             Rooms.getInstance().add(roomId, newUser);
@@ -79,7 +79,7 @@ export default function handleWS(log: FastifyBaseLogger) {
             clearTimeout(joinTimeout);
 
             try {
-                connection.socket.send(
+                socket.send(
                     JSON.stringify(new WSMessage('join_room', beforeUpdateRoomData))
                 );
             } catch {
@@ -87,14 +87,14 @@ export default function handleWS(log: FastifyBaseLogger) {
             }
         };
 
-        connection.socket.on('message', (messageRaw) => {
-            let parsed: { type?: string; message?: unknown } | null = null;
+        socket.on('message', (messageRaw: RawData) => {
+            let parsed: { type?: string; message?: unknown };
             try {
                 parsed = JSON.parse(messageRaw.toString()) as { type?: string; message?: unknown };
             } catch {
                 return;
             }
-            if (!parsed || typeof parsed.type !== 'string') return;
+            if (typeof parsed.type !== 'string') return;
             const { type, message } = parsed;
 
             const currentRoom = Rooms.getInstance().get(roomId);
@@ -133,7 +133,7 @@ export default function handleWS(log: FastifyBaseLogger) {
                 }
                 case 'keep-alive': {
                     try {
-                        connection.socket.send(
+                        socket.send(
                             JSON.stringify(new WSMessage('pong', 'alive'))
                         );
                     } catch {
@@ -146,7 +146,7 @@ export default function handleWS(log: FastifyBaseLogger) {
             }
         });
 
-        connection.socket.on('close', () => {
+        socket.on('close', () => {
             try {
                 clearTimeout(joinTimeout);
                 if (joined) {

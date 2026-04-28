@@ -1,5 +1,5 @@
 import { User } from './user';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import WSMessage from './wsMessage';
 
 export class Room {
@@ -11,7 +11,7 @@ export class Room {
 
     constructor(id: string) {
         this.member = [];
-        this.secretKey = uuidv4();
+        this.secretKey = randomUUID();
         this.id = id;
         this.updatedAt = new Date();
         this.createdAt = new Date();
