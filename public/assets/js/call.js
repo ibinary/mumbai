@@ -1,360 +1,626 @@
-class User {
-    /**
-     * Create a user.
-     * @param {User} user
-     * @param {string} user.peerId
-     * @param {string} user.name
-     * @param {string} user.avatar
-     */
-    constructor({ peerId, name, avatar }) {
-        this.peerId = peerId;
-        this.name = name;
-        this.avatar = avatar;
+/* global QRCode, Peer, cameraGrid, toggleAudio, toggleVideo */
+(function () {
+    'use strict';
+
+    class User {
+        constructor({ peerId, name, avatar }) {
+            this.peerId = peerId;
+            this.name = name;
+            this.avatar = avatar;
+        }
     }
-}
 
-/**
- * Description
- * @type {Map<string, User>}
- */
-const room = new Map();
+    const room = new Map();
+    let name;
 
-/**
- * Description
- * @type {string}
- */
-let name;
+    // ---------- WebSocket manager (unchanged behavior, cleaner internals) ---
+    class WebSocketManager {
+        constructor() {
+            this.ws = null;
+            this.reconnectAttempts = 0;
+            this.maxReconnectAttempts = 5;
+            this.reconnectDelay = 1000;
+            this.heartbeatInterval = null;
+            this.heartbeatTimer = 30000;
+            this.messageQueue = [];
+            this.isConnecting = false;
+            this.connectionParams = null;
+            this.onMessageHandlers = [];
+            this.onOpenHandlers = [];
+            this.onCloseHandlers = [];
+            this.connectionStatus = 'disconnected';
+        }
 
-
-let messageSound = new Audio('/assets/audio/message.mp3');
-
-navigator.getUserMedia =
-    navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-
-/**
- * @param {Object} peer
- * @param {Object} stream
- * @return {function(user: User): void}
- */
-const handleCall = (peer, stream) => {
-    return ({ peerId: guestPeerId, name: guestName, openCamera, openMicrophone }) => {
-        var call = peer.call(guestPeerId, stream, { metadata: name });
-        let isStartedCamera = false;
-        call.on('stream', function (stream) {
-            if (!isStartedCamera) {
-                isStartedCamera = true;
-                room.set(guestPeerId, new User({ peerId: guestPeerId, name: guestName }));
-                cameraGrid.addCamera('camera-' + guestPeerId, guestName);
-                if (!openCamera) cameraGrid.toggleCameraIcon('camera-' + guestPeerId, false);
-                if (!openMicrophone)
-                    cameraGrid.toggleMicrophoneIcon('camera-' + guestPeerId, false);
+        connect(url, params = {}) {
+            if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) return;
+            this.connectionParams = { url, params };
+            this.isConnecting = true;
+            this.connectionStatus = 'connecting';
+            this.updateConnectionStatus('Connecting...');
+            try {
+                this.ws = new WebSocket(url);
+                this.setupEventHandlers();
+            } catch (err) {
+                this.handleConnectionError();
             }
-            cameraGrid.stream('camera-' + guestPeerId, stream);
-        });
-    };
-};
+        }
 
-/**
- * @param {Object} stream
- * @return {function(call: Object): void} remove user's camera
- */
-const handleAnswer = (stream) => {
-    return (call) => {
-        const guestPeerId = call.peer;
-        const guestName = call.metadata;
-        // answer the call, providing our mediaStream
-        call.answer(stream);
-        let isStartedCamera = false;
-        call.on('stream', function (stream) {
-            if (!isStartedCamera) {
-                isStartedCamera = true;
-                room.set(guestPeerId, new User({ peerId: guestPeerId, name: guestName }));
-                cameraGrid.addCamera('camera-' + guestPeerId, guestName);
+        setupEventHandlers() {
+            this.ws.onopen = () => {
+                this.isConnecting = false;
+                this.connectionStatus = 'connected';
+                this.reconnectAttempts = 0;
+                this.reconnectDelay = 1000;
+                this.updateConnectionStatus('Connected');
+                this.startHeartbeat();
+                this.processMessageQueue();
+                this.onOpenHandlers.forEach((h) => h());
+            };
+            this.ws.onmessage = (event) => {
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    return;
+                }
+                if (data.type === 'pong') return;
+                this.onMessageHandlers.forEach((h) => h(event));
+            };
+            this.ws.onclose = (event) => {
+                this.isConnecting = false;
+                this.connectionStatus = 'disconnected';
+                this.stopHeartbeat();
+                this.cleanupCameraGrid();
+                this.onCloseHandlers.forEach((h) => h(event));
+
+                // Surface server-side rejections as user-visible toasts.
+                if (event.code === 4401) {
+                    window.toast &&
+                        window.toast.error(
+                            'This room requires an active session. Create or reopen the room to continue.'
+                        );
+                    setTimeout(() => (window.location.href = '/'), 1500);
+                    return;
+                }
+                if (event.code === 4403) {
+                    window.toast && window.toast.error('The room is full.');
+                    setTimeout(() => (window.location.href = '/'), 1500);
+                    return;
+                }
+                if (event.code === 4404) {
+                    window.toast && window.toast.error('Room no longer exists.');
+                    setTimeout(() => (window.location.href = '/'), 1500);
+                    return;
+                }
+                if (event.code === 4400) {
+                    window.toast && window.toast.error('Bad request.');
+                    return;
+                }
+
+                if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.attemptReconnect();
+                } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    this.updateConnectionStatus('Disconnected - refresh to retry');
+                }
+            };
+            this.ws.onerror = () => this.handleConnectionError();
+        }
+
+        cleanupCameraGrid() {
+            const dish = document.querySelector('.Dish');
+            if (!dish) return;
+            const myId = 'my-camera';
+            const my = document.getElementById(myId);
+            const myStream = my && my.querySelector('video') && my.querySelector('video').srcObject;
+            dish.innerHTML = '';
+            if (my && myStream) {
+                cameraGrid.addCamera(myId, 'You', true);
+                cameraGrid.stream(myId, myStream);
             }
-            cameraGrid.stream('camera-' + guestPeerId, stream);
-        });
-    };
-};
-
-/**
- * @param {string} peerId
- * @return {function(): void} remove user's camera
- */
-const handleCloseCall = (peerId) => {
-    cameraGrid.removeCamera('camera-' + peerId);
-    room.delete(peerId);
-};
-
-/**
- * @param {Object} stream
- */
-const onSuccess = (stream) => {
-    (async () => {
-        try {
-            // Initialize the Peer object with the server's IPv6 address
-            const peer = new Peer({
-                host: 'mumbai.sealed.ch',
-                port: 9000,
-                path: '/mumbai',
-                secure: true // Set to true if your server uses HTTPS
-            });
-
-            peer.on('open', function (peerId) {
-                const isHttps = location.protocol.includes('https');
-                const ws = new WebSocket(
-                    `${isHttps ? 'wss' : 'ws'}://${
-                        location.host
-                    }/ws?roomId=${roomId}&peerId=${peerId}&name=${name}`
-                );
-                room.set(peerId, new User({ peerId, name }));
-                handleCallControl(stream, ws);
-                ws.onmessage = ({ data }) => {
-                    const { type, message } = JSON.parse(data);
-
-                    switch (type) {
-                        case 'join_room': {
-                            message.forEach(handleCall(peer, stream));
-                            break;
-                        }
-                        case 'disconnect': {
-                            handleCloseCall(message);
-                            break;
-                        }
-                        case 'microphone': {
-                            const { peerId, value } = message;
-                            cameraGrid.toggleMicrophoneIcon('camera-' + peerId, value);
-                            break;
-                        }
-                        case 'camera': {
-                            const { peerId, value } = message;
-                            cameraGrid.toggleCameraIcon('camera-' + peerId, value);
-                            break;
-                        }
-                        case 'room_full': {
-                            alert("The room is full. You will be redirected to the homepage.");
-                            window.location.href = '/';
-                            break;
-                        }
-                        case 'force_close': {
-                            alert("The room is now closed.");
-                            // Close the WebSocket connection
-                            if (ws) {
-                                ws.close();
-                            }
-                            // Redirect to homepage or another appropriate action
-                            window.location.href = '/';
-                            break;
-                        }
-                        default: {
-                        }
-                    }
-                };
-
-                peer.on('call', handleAnswer(stream));
-            });
-        } catch (error) {
-            console.error("Failed to get server IP:", error);
+            room.clear();
+            if (my) room.set('my-camera', new User({ peerId: 'my-camera', name: 'You' }));
         }
-    })();
-};
 
-/**
- * @param {Object} ws websocket
- * @return {Function(value: Boolean) => void}
- */
-const sendMessageMicrophone = (ws) => {
-    return (value) => {
-        ws.send(JSON.stringify({ type: 'microphone', message: value }));
-    };
-};
+        handleConnectionError() {
+            this.isConnecting = false;
+            this.connectionStatus = 'disconnected';
+            this.stopHeartbeat();
+            if (this.reconnectAttempts < this.maxReconnectAttempts) this.attemptReconnect();
+        }
 
-/**
- * @param {Object} ws websocket
- * @return {Function(value: Boolean) => void}
- */
-const sendMessageCamera = (ws) => {
-    return (value) => {
-        ws.send(JSON.stringify({ type: 'camera', message: value }));
-    };
-};
+        attemptReconnect() {
+            if (this.isConnecting || !this.connectionParams) return;
+            this.reconnectAttempts++;
+            const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000);
+            this.updateConnectionStatus(`Reconnecting ${this.reconnectAttempts}/${this.maxReconnectAttempts}...`);
+            setTimeout(() => {
+                if (this.connectionParams) this.connect(this.connectionParams.url, this.connectionParams.params);
+            }, delay);
+        }
 
-/**
- * @param {Object} stream
- * @param {Object} ws websocket
- */
-const handleCallControl = (stream, ws) => {
-    document
-        .querySelectorAll('.toggle-audio')
-        .forEach((el) => (el.onclick = () => toggleAudio(stream, sendMessageMicrophone(ws))));
-    document
-        .querySelectorAll('.toggle-video')
-        .forEach((el) => (el.onclick = () => toggleVideo(stream, sendMessageCamera(ws))));
-    document.querySelector('.leave-room').onclick = async () => {
-        try {
-            const response = await fetch(`/room/delete/${roomId}`, { method: 'DELETE' });
-            if (!response.ok) {
-                throw new Error("Failed to delete the room.");
+        startHeartbeat() {
+            this.stopHeartbeat();
+            this.heartbeatInterval = setInterval(() => {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ type: 'keep-alive', message: 'ping' }));
+                }
+            }, this.heartbeatTimer);
+        }
+
+        stopHeartbeat() {
+            if (this.heartbeatInterval) {
+                clearInterval(this.heartbeatInterval);
+                this.heartbeatInterval = null;
             }
-            // The actual closing and redirection will be handled by the WebSocket message
-        } catch (error) {
-            console.error("Error deleting the room:", error);
-            alert("An error occurred while trying to delete the room.");
         }
-    };
-};
-// Function to start sending keep-alive messages
-function startKeepAlive(ws) {
-    const interval = 30000; // 30 seconds
 
-    const keepAliveMsg = JSON.stringify({ type: 'keep-alive', message: 'ping' });
-    const keepAlive = () => {
-        if (ws.readyState === WebSocket.OPEN) {
-            ws.send(keepAliveMsg);
+        send(message) {
+            const payload = typeof message === 'string' ? message : JSON.stringify(message);
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(payload);
+            } else {
+                this.messageQueue.push(payload);
+                if (this.connectionStatus === 'disconnected' && this.connectionParams) {
+                    this.attemptReconnect();
+                }
+            }
         }
-    };
 
-    // Send a keep-alive message every interval
-    const keepAliveInterval = setInterval(keepAlive, interval);
+        processMessageQueue() {
+            while (this.messageQueue.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(this.messageQueue.shift());
+            }
+        }
 
-    // Clear the interval on WebSocket close or error
-    ws.addEventListener('close', () => clearInterval(keepAliveInterval));
-    ws.addEventListener('error', () => clearInterval(keepAliveInterval));
-}
+        updateConnectionStatus(status) {
+            let el = document.getElementById('connection-status');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'connection-status';
+                el.className = 'connection-status ' + this.connectionStatus;
+                document.body.appendChild(el);
+            }
+            el.textContent = status;
+            el.className = 'connection-status ' + this.connectionStatus;
+        }
 
-// Call this function after establishing the WebSocket connection
+        onMessage(h) {
+            this.onMessageHandlers.push(h);
+        }
+        onOpen(h) {
+            this.onOpenHandlers.push(h);
+        }
+        onClose(h) {
+            this.onCloseHandlers.push(h);
+        }
 
-const start = () => {
-const constraints = { audio: true, video: { facingMode: "user" } };
+        close() {
+            this.stopHeartbeat();
+            if (this.ws) this.ws.close(1000, 'User closed connection');
+            this.connectionParams = null;
+            this.messageQueue = [];
+        }
 
-navigator.mediaDevices.getUserMedia(constraints)
-    .then((stream) => {
-        cameraGrid.addCamera('my-camera', 'You', true);
-        cameraGrid.stream('my-camera', stream);
-        onSuccess(stream);
-    })
-    .catch((err) => {
-        console.error("Error accessing media devices:", err);
-        displayDummyCameraIcon('my-camera', 'You');
-        const audioOnlyConstraints = { audio: true, video: false };
-        navigator.mediaDevices.getUserMedia(audioOnlyConstraints)
-            .then((audioStream) => {
-                onSuccess(audioStream);
-            })
-            .catch((audioErr) => {
-                console.error("Error accessing audio device:", audioErr);
-                onSuccess(null);
+        isConnected() {
+            return this.ws && this.ws.readyState === WebSocket.OPEN;
+        }
+    }
+
+    const wsManager = new WebSocketManager();
+
+    // ---------- Peer / media plumbing --------------------------------------
+
+    const handleCall = (peer, stream) => {
+        return ({ peerId: guestPeerId, name: guestName, openCamera, openMicrophone }) => {
+            const call = peer.call(guestPeerId, stream, { metadata: name });
+            let started = false;
+            call.on('stream', (s) => {
+                if (!started) {
+                    started = true;
+                    room.set(guestPeerId, new User({ peerId: guestPeerId, name: guestName }));
+                    cameraGrid.addCamera('camera-' + guestPeerId, guestName);
+                    if (!openCamera) cameraGrid.toggleCameraIcon('camera-' + guestPeerId, false);
+                    if (!openMicrophone) cameraGrid.toggleMicrophoneIcon('camera-' + guestPeerId, false);
+                }
+                cameraGrid.stream('camera-' + guestPeerId, s);
             });
-    });
-};
-
-// Function to display the dummy camera icon
-function displayDummyCameraIcon(cameraId, name) {
-    cameraGrid.addCamera(cameraId, name, false);
-}
-
-document.querySelector('#create-room').onclick = async (e) => {
-    name = document.querySelector('#name').value;
-    if (!name) return;
-    e.preventDefault();
-    Cookies.set('name', name);
-    document.querySelector('.join').style.display = 'none';
-    document.querySelector('.call').style.display = 'block';
-    start();
-};
-
-
-const getTime = () => {
-    const d = new Date();
-    const hours = d.getHours();
-    const minutes = d.getMinutes();
-    return `${hours < 10 ? `0${hours}` : hours}:${minutes < 10 ? `0${minutes}` : minutes}`;
-};
-
-
-
-const isURL = (str) => {
-    var urlRegex =
-        '^(?!mailto:)(?:(?:http|https|ftp)://)(?:\\S+(?::\\S*)?@)?(?:(?:(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[0-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))|localhost)(?::\\d{2,5})?(?:(/|\\?|#)[^\\s]*)?$';
-    var url = new RegExp(urlRegex, 'i');
-    return str.length < 2083 && url.test(str);
-};
-
-
-/*
- Really ugly will fix this code eventually
-*/
-document.querySelector('#share-room').onclick = function() {
-    const currentUrl = window.location.href;
-
-    // Create container for QR code and controls
-    const qrCodeContainer = document.createElement('div');
-    qrCodeContainer.id = 'qr-code-container';
-    qrCodeContainer.style.position = 'fixed';
-    qrCodeContainer.style.top = '50%';
-    qrCodeContainer.style.left = '50%';
-    qrCodeContainer.style.transform = 'translate(-50%, -50%)';
-    qrCodeContainer.style.padding = '20px';
-    qrCodeContainer.style.background = 'white';
-    qrCodeContainer.style.borderRadius = '8px';
-    qrCodeContainer.style.textAlign = 'center';
-    qrCodeContainer.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-    document.body.appendChild(qrCodeContainer);
-
-    // Create QR code
-    const qrCode = new QRCode(qrCodeContainer, {
-        text: currentUrl,
-        width: 256,
-        height: 256
-    });
-
-    // Add CSS for buttons
-    const style = document.createElement('style');
-    style.innerHTML = `
-        .qr-button {
-            margin: 10px;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .qr-button:hover {
-            background-color: #0056b3;
-        }
-    `;
-    document.head.appendChild(style);
-
-    // Wait for QR code to render, then add buttons
-    setTimeout(() => {
-        // Add close button
-        const closeButton = document.createElement('button');
-        closeButton.textContent = 'Exit';
-        closeButton.className = 'qr-button';
-        closeButton.onclick = function() {
-            qrCodeContainer.remove();
         };
-        qrCodeContainer.appendChild(closeButton);
+    };
 
-        // Add share button
-        const shareButton = document.createElement('button');
-        shareButton.textContent = 'Share QR Code';
-        shareButton.className = 'qr-button';
-        shareButton.onclick = function() {
-            const canvas = qrCodeContainer.querySelector('canvas');
-            canvas.toBlob(blob => {
-                if (navigator.share) {
-                    navigator.share({
-                        files: [new File([blob], 'qr-code.png', { type: 'image/png' })],
-                        title: 'Join my call',
-                        text: 'Scan this QR code to join my call!'
-                    }).catch(console.error);
-                } else {
-                    alert('Sharing not supported. Copy the QR code instead.');
+    const handleAnswer = (stream) => {
+        return (call) => {
+            const guestPeerId = call.peer;
+            const guestName = call.metadata;
+            call.answer(stream);
+            let started = false;
+            call.on('stream', (s) => {
+                if (!started) {
+                    started = true;
+                    room.set(guestPeerId, new User({ peerId: guestPeerId, name: guestName }));
+                    cameraGrid.addCamera('camera-' + guestPeerId, guestName);
+                }
+                cameraGrid.stream('camera-' + guestPeerId, s);
+            });
+        };
+    };
+
+    const handleCloseCall = (peerId) => {
+        cameraGrid.removeCamera('camera-' + peerId);
+        room.delete(peerId);
+    };
+
+    const onSuccess = (stream) => {
+        // PeerJS is mounted on the same origin/port as the page, so reuse
+        // location so it works behind any reverse proxy / TLS setup.
+        const isHttps = location.protocol === 'https:';
+        const peer = new Peer({
+            host: location.hostname,
+            port: location.port ? Number(location.port) : isHttps ? 443 : 80,
+            path: window.__PEER_PATH__ || '/mumbai',
+            secure: isHttps,
+        });
+
+        peer.on('open', function (peerId) {
+            const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+            const qs = new URLSearchParams({ roomId: window.roomId, peerId });
+            wsManager.onOpen(() => {
+                wsManager.send({ type: 'join_profile', message: name });
+            });
+            wsManager.connect(`${scheme}://${location.host}/ws?${qs.toString()}`);
+            room.set(peerId, new User({ peerId, name }));
+            handleCallControl(stream);
+
+            wsManager.onMessage((event) => {
+                let data;
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    return;
+                }
+                const { type, message } = data;
+                switch (type) {
+                    case 'join_room':
+                        (message || []).forEach(handleCall(peer, stream));
+                        break;
+                    case 'disconnect':
+                        handleCloseCall(message);
+                        break;
+                    case 'microphone':
+                        cameraGrid.toggleMicrophoneIcon('camera-' + message.peerId, message.value);
+                        break;
+                    case 'camera':
+                        cameraGrid.toggleCameraIcon('camera-' + message.peerId, message.value);
+                        break;
+                    case 'room_full':
+                        window.toast && window.toast.error('Room is full.');
+                        setTimeout(() => (window.location.href = '/'), 1500);
+                        break;
+                    case 'force_close':
+                        window.toast && window.toast.info('The call has ended.');
+                        wsManager.close();
+                        setTimeout(() => (window.location.href = '/'), 1200);
+                        break;
+                    default:
+                        break;
                 }
             });
+
+            peer.on('call', handleAnswer(stream));
+        });
+    };
+
+    const handleCallControl = (stream) => {
+        document.querySelectorAll('.toggle-audio').forEach((el) => {
+            el.onclick = () => toggleAudio(stream, (v) => wsManager.send({ type: 'microphone', message: v }));
+        });
+        document.querySelectorAll('.toggle-video').forEach((el) => {
+            el.onclick = () => toggleVideo(stream, (v) => wsManager.send({ type: 'camera', message: v }));
+        });
+        const leave = document.querySelector('.leave-room');
+        if (leave) {
+            leave.onclick = async () => {
+                try {
+                    const response = await fetch(
+                        `/room/delete/${encodeURIComponent(window.roomId)}`,
+                        { method: 'DELETE', credentials: 'same-origin' }
+                    );
+                    if (!response.ok) {
+                        window.toast && window.toast.error('Could not end the call.');
+                    }
+                } catch {
+                    window.toast && window.toast.error('Network error ending call.');
+                }
+            };
+        }
+    };
+
+    const displayDummyCameraIcon = (id, n) => cameraGrid.addCamera(id, n, false);
+
+    const start = () => {
+        const constraints = { audio: true, video: { facingMode: 'user' } };
+        navigator.mediaDevices
+            .getUserMedia(constraints)
+            .then((stream) => {
+                cameraGrid.addCamera('my-camera', 'You', true);
+                cameraGrid.stream('my-camera', stream);
+                onSuccess(stream);
+            })
+            .catch(() => {
+                displayDummyCameraIcon('my-camera', 'You');
+                navigator.mediaDevices
+                    .getUserMedia({ audio: true, video: false })
+                    .then(onSuccess)
+                    .catch(() => onSuccess(null));
+            });
+    };
+
+    // ---------- Join form --------------------------------------------------
+
+    const joinForm = document.getElementById('join-form');
+    if (joinForm) {
+        joinForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const v = document.getElementById('name').value.trim();
+            if (!v) return;
+            name = v.slice(0, 40);
+            document.querySelector('.join').style.display = 'none';
+            document.querySelector('.call').style.display = 'block';
+            start();
+            updateAddressBarShareUrl();
+        });
+    }
+
+    // ---------- Share / QR modal ------------------------------------------
+
+    const shareBtn = document.getElementById('share-room');
+    if (shareBtn) {
+        shareBtn.addEventListener('click', openShareModal);
+    }
+
+    async function mintShareUrl(expiresInMs) {
+        // Ask the server for a join token. The shared URL embeds this token,
+        // never the room secret itself.
+        const res = await fetch(
+            `/room/${encodeURIComponent(window.roomId)}/share-token`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ expiresInMs }),
+            }
+        );
+        if (!res.ok) throw new Error('token_request_failed');
+        const { token, expiresInMs: serverExpiresInMs } = await res.json();
+        if (!token) throw new Error('no_token');
+        const base = `${location.origin}/room/${encodeURIComponent(window.roomId)}`;
+        return {
+            url: `${base}?t=${encodeURIComponent(token)}`,
+            expiresInMs: serverExpiresInMs == null ? null : serverExpiresInMs,
         };
-        qrCodeContainer.appendChild(shareButton);
-    }, 100);
-};
+    }
+
+    function setAddressBarShareUrl(url) {
+        if (!url || !window.history || !window.history.replaceState) return;
+        window.history.replaceState(window.history.state, '', url);
+    }
+
+    async function updateAddressBarShareUrl(expiresInMs = null) {
+        try {
+            const result = await mintShareUrl(expiresInMs);
+            setAddressBarShareUrl(result.url);
+            return result;
+        } catch {
+            return null;
+        }
+    }
+
+    function getRequestedExpiry(expiryInput) {
+        const raw = expiryInput.value;
+        if (!raw) return null;
+
+        const ttlMs = Number(raw);
+        if (!Number.isFinite(ttlMs) || ttlMs < 60 * 1000 || ttlMs > 7 * 24 * 60 * 60 * 1000) {
+            throw new Error('invalid_expiry');
+        }
+
+        return ttlMs;
+    }
+
+    function formatExpiryHint(expiresInMs) {
+        if (expiresInMs === null) {
+            return 'This link does not expire while the room exists.';
+        }
+
+        const minutes = Math.max(1, Math.round(expiresInMs / 60000));
+        if (minutes < 60) return `This link is valid for ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) return `This link is valid for ${hours} hour${hours === 1 ? '' : 's'}.`;
+
+        const days = Math.round(hours / 24);
+        return `This link is valid for ${days} day${days === 1 ? '' : 's'}.`;
+    }
+
+    async function openShareModal() {
+        const modal = document.createElement('div');
+        modal.className = 'share-modal';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+
+        const card = document.createElement('div');
+        card.className = 'share-modal-card';
+
+        const title = document.createElement('h3');
+        title.textContent = 'Share room';
+        card.appendChild(title);
+
+        const hint = document.createElement('p');
+        hint.className = 'share-modal-hint';
+        hint.textContent = 'No expiry is selected by default. Change it anytime to create a fresh invite.';
+        card.appendChild(hint);
+
+        const expiryForm = document.createElement('form');
+        expiryForm.className = 'share-modal-expiry';
+
+        const expiryLabel = document.createElement('label');
+        expiryLabel.setAttribute('for', 'share-expiry');
+        expiryLabel.textContent = 'Invite expires';
+
+        const expirySelect = document.createElement('select');
+        expirySelect.id = 'share-expiry';
+        [
+            ['No expiry', ''],
+            ['30 minutes', String(30 * 60 * 1000)],
+            ['1 hour', String(60 * 60 * 1000)],
+            ['4 hours', String(4 * 60 * 60 * 1000)],
+            ['1 day', String(24 * 60 * 60 * 1000)],
+            ['7 days', String(7 * 24 * 60 * 60 * 1000)],
+        ].forEach(([label, value]) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            expirySelect.appendChild(option);
+        });
+
+        const expiryHelp = document.createElement('span');
+        expiryHelp.textContent = 'Changing this refreshes the QR code and link.';
+
+        const updateBtn = document.createElement('button');
+        updateBtn.className = 'btn';
+        updateBtn.type = 'submit';
+        updateBtn.textContent = 'Refresh';
+
+        expiryForm.appendChild(expiryLabel);
+        expiryForm.appendChild(expirySelect);
+        expiryForm.appendChild(updateBtn);
+        expiryForm.appendChild(expiryHelp);
+        card.appendChild(expiryForm);
+
+        const qr = document.createElement('div');
+        qr.className = 'share-modal-qr';
+        qr.textContent = 'Generating QR code...';
+        card.appendChild(qr);
+
+        const actions = document.createElement('div');
+        actions.className = 'share-modal-actions';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn';
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'Copy URL';
+        copyBtn.disabled = true;
+        copyBtn.onclick = async () => {
+            if (!shareUrl) return;
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => (copyBtn.textContent = 'Copy URL'), 1800);
+            } catch {
+                window.toast && window.toast.info(shareUrl);
+            }
+        };
+        actions.appendChild(copyBtn);
+
+        let shareUrl = '';
+        let nativeShareBtn = null;
+
+        const renderShareLink = async () => {
+            let expiresInMs;
+            try {
+                expiresInMs = getRequestedExpiry(expirySelect);
+            } catch {
+                window.toast &&
+                    window.toast.error('Choose one of the expiry options.');
+                return;
+            }
+
+            updateBtn.disabled = true;
+            copyBtn.disabled = true;
+            if (nativeShareBtn) nativeShareBtn.disabled = true;
+            qr.textContent = 'Creating share link...';
+
+            try {
+                const result = await mintShareUrl(expiresInMs);
+                shareUrl = result.url;
+                setAddressBarShareUrl(shareUrl);
+                hint.textContent = formatExpiryHint(result.expiresInMs);
+                qr.innerHTML = '';
+                // eslint-disable-next-line no-new
+                new QRCode(qr, {
+                    text: shareUrl,
+                    width: 200,
+                    height: 200,
+                    colorDark: '#000000',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.H,
+                });
+                copyBtn.disabled = false;
+                if (nativeShareBtn) nativeShareBtn.disabled = false;
+                updateBtn.textContent = 'Refresh';
+            } catch {
+                shareUrl = '';
+                qr.textContent = 'Could not create a share link.';
+                if (nativeShareBtn) nativeShareBtn.disabled = true;
+                window.toast &&
+                    window.toast.error(
+                        'Could not create a share link. Only the room creator can share.'
+                    );
+            } finally {
+                updateBtn.disabled = false;
+            }
+        };
+
+        expiryForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            renderShareLink();
+        });
+        expirySelect.addEventListener('change', renderShareLink);
+
+        if (navigator.share) {
+            const shareButton = document.createElement('button');
+            shareButton.className = 'btn';
+            shareButton.type = 'button';
+            shareButton.textContent = 'Share';
+            shareButton.disabled = true;
+            nativeShareBtn = shareButton;
+            shareButton.onclick = () => {
+                if (!shareUrl) return;
+                const canvas = qr.querySelector('canvas');
+                if (!canvas) return;
+                canvas.toBlob((blob) => {
+                    const file = new File([blob], 'mumbai-room-qr.png', { type: 'image/png' });
+                    navigator
+                        .share({
+                            files: [file],
+                            title: 'Join my Mumbai call',
+                            text: 'Scan this QR code to join my video call.',
+                            url: shareUrl,
+                        })
+                        .catch(() => {
+                            navigator.clipboard
+                                .writeText(shareUrl)
+                                .then(() => window.toast && window.toast.success('URL copied.'))
+                                .catch(() => window.toast && window.toast.info(shareUrl));
+                        });
+                }, 'image/png');
+            };
+            actions.appendChild(shareButton);
+        }
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn btn--danger';
+        closeBtn.type = 'button';
+        closeBtn.textContent = 'Close';
+        closeBtn.onclick = () => modal.remove();
+        actions.appendChild(closeBtn);
+
+        card.appendChild(actions);
+        modal.appendChild(card);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+        document.body.appendChild(modal);
+        renderShareLink();
+    }
+
+})();

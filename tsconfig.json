@@ -17,6 +17,7 @@
         "moduleResolution": "node",
         // Import .json files
         "resolveJsonModule": true,
+        "skipLibCheck": true,
         "sourceMap": true,
         "outDir": "build",
         "baseUrl": ".",

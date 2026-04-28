@@ -120,6 +120,7 @@ class CameraGrid {
         const camera = document.createElement('video');
         camera.autoplay = true;
         camera.muted = isMuted;
+        camera.playsInline = true;  // Add playsinline for Safari/iOS support
         cameraContainer.setAttribute('name', name);
         cameraContainer.appendChild(camera);
         cameraContainer.id = id;

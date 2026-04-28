@@ -45,9 +45,14 @@ export class Room {
         return this.member;
     }
 
-    boardcast(message: WSMessage) {
-        const listClients = this.member;
-        listClients?.forEach((client) => client.socket.send(JSON.stringify(message)));
+    public broadcast(message: WSMessage) {
+        this.member.forEach((client) => {
+            try {
+                client.socket.send(JSON.stringify(message));
+            } catch {
+                /* socket may be closed mid-broadcast; ignore */
+            }
+        });
     }
 
     public getCreatedAt() {
@@ -58,14 +63,11 @@ export class Room {
         return this.updatedAt;
     }
 
-    // Public method to check if the room is full
     public isFull(): boolean {
         return this.member.length >= 2;
     }
 
-    // Optionally, a method to get the current member count
     public getMemberCount(): number {
         return this.member.length;
     }
 }
-

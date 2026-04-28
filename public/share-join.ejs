@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <%- include('./header.ejs') %>
+    </head>
+    <body data-room-id="<%= roomId %>">
+        <main class="share-join">
+            <section class="share-join-card" aria-live="polite">
+                <div class="spinner" aria-hidden="true"></div>
+                <h1>Opening room</h1>
+                <p id="share-join-status">Checking your invite link...</p>
+            </section>
+        </main>
+        <script src="/assets/js/share-join.js"></script>
+    </body>
+</html>

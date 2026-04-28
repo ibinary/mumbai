@@ -4,70 +4,164 @@ import WSMessage from './wsMessage';
 import Rooms from './rooms';
 import { User } from './user';
 import WsClients from './wsClients';
+import { roomCookieName, verifyRoomCookie } from './roomAuth';
 
 type MyRequest = FastifyRequest<{
-    Querystring: { roomId: string; peerId: string; name: string };
+    Querystring: { roomId?: string; peerId?: string };
 }>;
 
+const ROOM_ID_RE = /^[A-Za-z0-9_-]{1,32}$/;
+const PEER_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const NAME_MAX = 40;
+
+// WebSocket close codes used by the client for UX:
+//   4400 = bad request      (missing / malformed params)
+//   4401 = unauthenticated  (no / wrong room secret)
+//   4403 = room full
+//   4404 = room not found
 export default function handleWS(log: FastifyBaseLogger) {
     return function (connection: SocketStream, request: MyRequest) {
-        const { peerId, roomId, name } = request.query;
-        const room = Rooms.getInstance().get(roomId);
+        const { peerId = '', roomId = '' } = request.query;
 
-        // Use the isFull method to check if the room is full
-        if (room && room.isFull()) {
-            connection.socket.send(JSON.stringify(new WSMessage('room_full', {})));
+        if (!ROOM_ID_RE.test(roomId) || !PEER_ID_RE.test(peerId)) {
+            connection.socket.close(4400);
+            return;
+        }
+        let safeName = 'Guest';
+        let joined = false;
+
+        const room = Rooms.getInstance().get(roomId);
+        if (!room) {
+            connection.socket.close(4404);
             return;
         }
 
-        // Add to client cache & room
-        const newUser = new User(peerId, name, connection.socket);
-        WsClients.getInstance().add(peerId, newUser);
-        const beforeUpdateRoomData = [
-            ...(Rooms.getInstance().get(roomId)?.getMemberWithoutSocket() || []),
-        ];
-        Rooms.getInstance().add(roomId, newUser);
+        const cookieSecret = (request as FastifyRequest).cookies?.[roomCookieName(roomId)];
+        if (!cookieSecret || !verifyRoomCookie(cookieSecret, room.getSecretKey())) {
+            connection.socket.close(4401);
+            return;
+        }
 
-        connection.socket.send(JSON.stringify(new WSMessage('join_room', beforeUpdateRoomData)));
+        const joinTimeout = setTimeout(() => {
+            if (!joined) connection.socket.close(4400);
+        }, 10_000);
+        joinTimeout.unref();
+
+        log.debug({ event: 'ws_open' });
+
+        const joinRoom = (displayName: unknown) => {
+            if (joined) return;
+
+            const currentRoom = Rooms.getInstance().get(roomId);
+            if (!currentRoom) {
+                connection.socket.close(4404);
+                return;
+            }
+            if (currentRoom.isFull()) {
+                try {
+                    connection.socket.send(JSON.stringify(new WSMessage('room_full', {})));
+                } catch {
+                    /* ignore */
+                }
+                connection.socket.close(4403);
+                return;
+            }
+
+            safeName =
+                typeof displayName === 'string' && displayName.trim()
+                    ? displayName.trim().slice(0, NAME_MAX)
+                    : 'Guest';
+            const newUser = new User(peerId, safeName, connection.socket);
+            WsClients.getInstance().add(peerId, newUser);
+            const beforeUpdateRoomData = [...(currentRoom.getMemberWithoutSocket() || [])];
+            Rooms.getInstance().add(roomId, newUser);
+            joined = true;
+            clearTimeout(joinTimeout);
+
+            try {
+                connection.socket.send(
+                    JSON.stringify(new WSMessage('join_room', beforeUpdateRoomData))
+                );
+            } catch {
+                /* ignore */
+            }
+        };
 
         connection.socket.on('message', (messageRaw) => {
-            // eslint-disable-next-line @typescript-eslint/no-base-to-string
-            const { type, message } = JSON.parse(messageRaw.toString()) as WSMessage;
+            let parsed: { type?: string; message?: unknown } | null = null;
+            try {
+                parsed = JSON.parse(messageRaw.toString()) as { type?: string; message?: unknown };
+            } catch {
+                return;
+            }
+            if (!parsed || typeof parsed.type !== 'string') return;
+            const { type, message } = parsed;
+
+            const currentRoom = Rooms.getInstance().get(roomId);
+            if (!currentRoom) return;
+
             switch (type) {
-                case 'microphone':
-                    WsClients.getInstance().get(peerId)?.setMicrophone(Boolean(message));
-                    Rooms.getInstance()
-                        .get(roomId)
-                        ?.boardcast(new WSMessage('microphone', { peerId, value: message }));
+                case 'join_profile': {
+                    joinRoom(message);
                     break;
-                case 'camera':
-                    WsClients.getInstance().get(peerId)?.setCamera(Boolean(message));
-                    Rooms.getInstance()
-                        .get(roomId)
-                        ?.boardcast(new WSMessage('camera', { peerId, value: message }));
+                }
+                case 'microphone': {
+                    if (!joined) return;
+                    const value = Boolean(message);
+                    WsClients.getInstance().get(peerId)?.setMicrophone(value);
+                    currentRoom.broadcast(
+                        new WSMessage('microphone', { peerId, value })
+                    );
                     break;
-                case 'message':
-                    log.info({ type: 'message', msg: JSON.stringify({ roomId, peerId, message }) });
-                    Rooms.getInstance()
-                        .get(roomId)
-                        ?.boardcast(new WSMessage('message', { peerId, value: message }));
+                }
+                case 'camera': {
+                    if (!joined) return;
+                    const value = Boolean(message);
+                    WsClients.getInstance().get(peerId)?.setCamera(value);
+                    currentRoom.broadcast(new WSMessage('camera', { peerId, value }));
                     break;
-                default: return;
+                }
+                case 'message': {
+                    if (!joined) return;
+                    const text =
+                        typeof message === 'string' ? message.slice(0, 2000) : '';
+                    if (!text) return;
+                    currentRoom.broadcast(
+                        new WSMessage('message', { peerId, value: text })
+                    );
+                    break;
+                }
+                case 'keep-alive': {
+                    try {
+                        connection.socket.send(
+                            JSON.stringify(new WSMessage('pong', 'alive'))
+                        );
+                    } catch {
+                        /* ignore */
+                    }
+                    break;
+                }
+                default:
+                    return;
             }
         });
 
         connection.socket.on('close', () => {
-            //remove client cache & delete from room
             try {
-                Rooms.getInstance().get(roomId)?.removeMember(peerId);
-                WsClients.getInstance().delete(peerId);
-                Rooms.getInstance().get(roomId)?.boardcast(new WSMessage('disconnect', peerId));
-            } catch (err) {
-                let message = 'Unknown Error';
-                if (err instanceof Error) message = err.message;
-                log.info({ type: 'out_room', msg: message });
+                clearTimeout(joinTimeout);
+                if (joined) {
+                    const r = Rooms.getInstance().get(roomId);
+                    r?.removeMember(peerId);
+                    WsClients.getInstance().delete(peerId);
+                    r?.broadcast(new WSMessage('disconnect', peerId));
+                    if (r && r.getMemberCount() === 0) {
+                        Rooms.getInstance().delete(roomId);
+                    }
+                }
+            } catch {
+                /* ignore */
             }
+            log.debug({ event: 'ws_close' });
         });
     };
 }
-

@@ -30,7 +30,7 @@ export default class Rooms {
     }
 
     public delete(roomID: string) {
-        if (!this.roomsData.has(roomID)) throw new Error('This room is not exists');
+        if (!this.roomsData.has(roomID)) return false;
         return this.roomsData.delete(roomID);
     }
 

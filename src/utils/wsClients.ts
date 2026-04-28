@@ -16,7 +16,7 @@ export default class WsClients {
     }
 
     public delete(id: string) {
-        if (!this.data.has(id)) throw new Error('Caller Not Found');
+        // Be forgiving on disconnect races; nothing else relies on the throw.
         this.data.delete(id);
     }
 

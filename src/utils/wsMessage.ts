@@ -1,11 +1,9 @@
-export default class WSMessage {
+export default class WSMessage<T = unknown> {
     public type: string;
-    public message: string | boolean;
+    public message: T;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    constructor(type: string, message: any) {
+    constructor(type: string, message: T) {
         this.type = type;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         this.message = message;
     }
 }

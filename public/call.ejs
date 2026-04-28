@@ -3,52 +3,54 @@
     <head>
         <%- include('./header.ejs') %>
         <link rel="stylesheet" href="/assets/css/video-grid.css" />
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
     </head>
-    <body>
+    <body
+        data-room-id="<%= roomId %>"
+        data-peer-path="<%= peerPath %>"
+    >
         <div class="join">
-            <form>
-                <input id="name" type="text" placeholder="Enter Your Name" required />
-                <button id="create-room" class="button-38" type="submit">
-                    <i class="fa-solid fa-circle-plus"></i>
-                    Submit
-                </button>
-            </form>
+            <section class="join-card" aria-labelledby="join-title">
+                <h2 id="join-title">Join the call</h2>
+                <p>Enter a display name. Nothing about you is stored.</p>
+                <form id="join-form" autocomplete="off">
+                    <label for="name" class="visually-hidden">Display name</label>
+                    <input id="name" name="name" type="text" placeholder="Your name" required maxlength="40" autocomplete="off" />
+                    <button id="create-room" class="btn btn--primary" type="submit">
+                        <i class="fa-solid fa-circle-plus" aria-hidden="true"></i>
+                        <span>Join</span>
+                    </button>
+                </form>
+            </section>
         </div>
+
         <div class="call" style="display: none">
             <div class="Scenary"></div>
-<div class="control">
-                <button class="enable-audio toggle-audio button-38" style="display: none">
-                    <i class="fa-solid fa-microphone-slash"></i>
+            <div class="control">
+                <button class="enable-audio toggle-audio" style="display: none" type="button" aria-label="Unmute microphone">
+                    <i class="fa-solid fa-microphone-slash" aria-hidden="true"></i>
                 </button>
-                <button class="disable-audio toggle-audio button-38">
-                    <i class="fa-solid fa-microphone"></i>
+                <button class="disable-audio toggle-audio" type="button" aria-label="Mute microphone">
+                    <i class="fa-solid fa-microphone" aria-hidden="true"></i>
                 </button>
-                <button class="leave-room button-38">
-                    Exit
+                <button class="leave-room" type="button">Exit</button>
+                <button id="share-room" class="share-room" type="button">Share</button>
+                <button class="toggle-video disable-video" type="button" aria-label="Turn camera off">
+                    <i class="fa-solid fa-video-camera" aria-hidden="true"></i>
                 </button>
-                <button id="share-room" class="share-room button-38" style="display: flex;">
-                Share
+                <button class="toggle-video enable-video" style="display: none" type="button" aria-label="Turn camera on">
+                    <i class="fas fa-video-slash" aria-hidden="true"></i>
                 </button>
-
-                <button class="toggle-video disable-video button-38" style="display: flex;">
-                   <i class="fa-solid fa-video-camera"></i>
-                </button>
-                <button class="toggle-video enable-video button-38" style="display: none;">
-		   <i class="fas fa-video-slash"></i>
-                </button>
-		</div>           
-	     </div>
+            </div>
         </div>
-    </body> 
-    <script src="/assets/js/video-grid.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
-    <script src="/assets/js/js.cookie.min.js"></script>
-    <script>
-        const roomId = '<%=roomId %>';
-    </script>
-    <script src="/assets/js/media.js"></script>
-    <script src="/assets/js/call.js"></script>
+
+        <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+
+        <script src="/assets/js/toast.js"></script>
+        <script src="/assets/js/video-grid.js"></script>
+        <script src="/assets/vendor/peerjs.min.js"></script>
+        <script src="/assets/vendor/qrcode.min.js"></script>
+        <script src="/assets/js/call-boot.js"></script>
+        <script src="/assets/js/media.js"></script>
+        <script src="/assets/js/call.js"></script>
+    </body>
 </html>
