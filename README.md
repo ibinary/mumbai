@@ -32,5 +32,5 @@ The idea for Mumbai was the secondary effect of work on it's elder full-feature 
 # Contact:
 We hope others can leverage Mumbai for their own, personal or institutional needs. If you have any suggestions, enhancements, updates, forks, all are warmly welcomed at sealed-ch@pm.me
 #
-Jake Kitchen - jakekitchen@proton.me / Ken Nickerson - kenn@ibinary.com
+Jake Kitchen - jacob.kitchen@hotmail.com / Ken Nickerson - kenn@ibinary.com
 Mumbai was privately funded by iBinary LLC.
